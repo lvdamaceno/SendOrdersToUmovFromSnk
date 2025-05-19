@@ -20,7 +20,3 @@ if __name__ == '__main__':
             processa_envio_umov(pedido, client_sankhya)
         except Exception as e:
             logging.error(f"❌ Erro ao processar pedido {pedido}: {e}")
-
-    # TODO
-    # Criar o cron para enviar todo dia as montagens do dia anterior
-    # Notificar via telegram
