@@ -7,6 +7,5 @@ from datetime import datetime, timedelta
 if __name__ == '__main__':
     configure_logging()
     client_sankhya = SankhyaClient()
-    ontem = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-
+    ontem = (datetime.now() - timedelta(days=1)).strftime('%d/%m/%Y')
     processa_envio_pedido_periodo_umov(ontem,client=client_sankhya)
