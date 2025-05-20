@@ -5,8 +5,31 @@ from datetime import datetime
 
 import requests
 
+
 from sankhya_api.fetch import snk_fetch_itens_tarefa, snk_fetch_local_tarefa, snk_fetch_tarefa
 
+# ============================
+# Utils
+# ============================
+UMOV_BASE_URL = "https://api.umov.me/v2"
+
+def build_headers():
+    return {
+        "AppId": os.getenv("UMOV_APP_ID"),
+        "AppKey": os.getenv("UMOV_APP_KEY"),
+        "Content-Type": "application/json"
+    }
+
+def log_request_error(contexto, response):
+    try:
+        erro = response.json()
+        logging.error(f"❌ Erro ao enviar {contexto}:\n{json.dumps(erro, indent=2, ensure_ascii=False)}")
+    except Exception:
+        logging.error(f"❌ Erro ao enviar {contexto}: código {response.status_code} - {response.text}")
+
+# ============================
+# Fetch info
+# ============================
 def umov_get_info_from_snk(tipo, nunota, client):
     fetch_map = {
         'itens_tarefa': (snk_fetch_itens_tarefa, "📦 Itens tarefa"),
@@ -18,104 +41,78 @@ def umov_get_info_from_snk(tipo, nunota, client):
         raise ValueError(f"Tipo inválido: {tipo}")
 
     fetch_func, log_msg = fetch_map[tipo]
-    info = fetch_func(nunota, client)
-    logging.debug(f"{log_msg}: {info}")
-    return info
+
+    try:
+        info = fetch_func(nunota, client)
+        logging.debug(f"{log_msg}: {info}")
+        return info
+    except Exception as e:
+        logging.error(f"❌ Erro ao buscar dados de '{tipo}' para NUNOTA {nunota}: {e}")
+        return None
 
 
-# ============================================================
-# ITENS DA TAREFA                                            =
-# ============================================================
+# ============================
+# Itens da tarefa
+# ============================
+def montar_payload_item(item):
+    alt_id, desc, ativo, subgrupo, qtd, pedido = item
+    return {
+        "active": ativo,
+        "alternativeIdentifier": alt_id,
+        "description": desc,
+        "showInCenterWeb": True,
+        "subGroup": {"alternativeIdentifier": subgrupo},
+        "customFields": [
+            {"alternativeIdentifier": "qtd_item", "value": str(qtd)},
+            {"alternativeIdentifier": "num_pedido", "value": str(pedido)}
+        ]
+    }
+
 def umov_post_itens_tarefa(nunota, client):
-    url = "https://api.umov.me/v2/item"
-
-    app_id = os.getenv("UMOV_APP_ID")
-    app_key = os.getenv("UMOV_APP_KEY")
-
+    logging.debug(f"🚀 Iniciando post itens tarefa: {nunota}")
+    url = f"{UMOV_BASE_URL}/item"
+    headers = build_headers()
     itens = umov_get_info_from_snk('itens_tarefa', nunota, client)
     produtos = []
 
-    headers = {
-        "AppId": app_id,
-        "AppKey": app_key,
-        "Content-Type": "application/json"
-    }
-
     for item in itens:
         produtos.append(item[0])
-        body = {
-            "alternativeIdentifier": item[0],
-            "description": item[1],
-            "active": item[2],
-            "subgroup": item[3],
-            "qtd_item": item[4],
-            "num_pedido": item[5]
-        }
-
-        payload = {
-            "active": body["active"],
-            "alternativeIdentifier": body["alternativeIdentifier"],
-            "description": body["description"],
-            "showInCenterWeb": True,
-            "subGroup": {
-                "alternativeIdentifier": body["subgroup"]
-            },
-            "customFields": [
-                {
-                    "alternativeIdentifier": "qtd_item",
-                    "value": str(body["qtd_item"])
-                },
-                {
-                    "alternativeIdentifier": "num_pedido",
-                    "value": str(body["num_pedido"])
-                }
-            ]
-        }
+        payload = montar_payload_item(item)
 
         try:
             response = requests.post(url, headers=headers, json=payload)
             response.raise_for_status()
-            logging.info(f"✅ Item '{body['alternativeIdentifier']}' enviado com sucesso.")
+            logging.info(f"✅ Item '{payload['alternativeIdentifier']}' enviado com sucesso.")
         except requests.RequestException as e:
-            logging.error(f"❌ Erro ao enviar item '{body['alternativeIdentifier']}': {e}")
+            logging.error(f"❌ Erro ao enviar item '{payload['alternativeIdentifier']}': {e}")
 
     return produtos
 
-
-# ============================================================
-# LOCAL DA TAREFA                                            =
-# ============================================================
+# ============================
+# Local da tarefa
+# ============================
 def umov_post_local_tarefa(nunota, client):
-    url = "https://api.umov.me/v2/local"
-    app_id = os.getenv("UMOV_APP_ID")
-    app_key = os.getenv("UMOV_APP_KEY")
-
-    headers = {
-        "AppId": app_id,
-        "AppKey": app_key,
-        "Content-Type": "application/json"
-    }
-
+    logging.debug(f"🚀 Iniciando post local tarefa: {nunota}")
+    url = f"{UMOV_BASE_URL}/local"
+    headers = build_headers()
     locais = umov_get_info_from_snk('local_tarefa', nunota, client)
+    falha = []
 
     for local in locais:
         (
-            alternativeIdentifier,
-            description,
-            corporateName,
-            active,
-            email,
-            celular,
-            country,
-            state,
-            city,
-            neighborhood,
-            endereco_completo,
-            zipcode
+            alternativeIdentifier, description, corporateName, active, email, celular,
+            country, state, city, neighborhood, endereco_completo, zipcode
         ) = local
 
-        ddd = celular[0:2]
-        numero = celular[2:]
+        if not celular or len(celular) < 3:
+            logging.warning(f"⚠️ Celular inválido para local: {alternativeIdentifier}")
+            falha.append(nunota)
+            continue
+
+        ddd, numero = celular[0:2], celular[2:]
+        endereco_split = endereco_completo.split(",")
+        rua = endereco_split[0]
+        numero_rua = endereco_split[1].strip() if len(endereco_split) > 1 else ""
 
         payload = {
             "alternativeIdentifier": alternativeIdentifier,
@@ -124,15 +121,9 @@ def umov_post_local_tarefa(nunota, client):
             "active": bool(active),
             "email": email,
             "contactDTO": {
-                "cellphone": {
-                    "ddd": ddd,
-                    "ddi": "55",
-                    "number": numero
-                },
+                "cellphone": {"ddd": ddd, "ddi": "55", "number": numero},
                 "email": email,
-                "phone": {
-                    "number": numero
-                }
+                "phone": {"number": numero}
             },
             "address": {
                 "processGeocoordinate": True,
@@ -140,8 +131,8 @@ def umov_post_local_tarefa(nunota, client):
                 "state": state,
                 "city": city,
                 "neighborhood": neighborhood,
-                "street": endereco_completo.split(",")[0],
-                "streetNumber": endereco_completo.split(",")[1].strip() if "," in endereco_completo else "",
+                "street": rua,
+                "streetNumber": numero_rua,
                 "streetType": "Rua",
                 "streetComplement": "",
                 "zipcode": zipcode
@@ -152,90 +143,66 @@ def umov_post_local_tarefa(nunota, client):
 
         try:
             response = requests.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
-                try:
-                    erro = response.json()
-                    logging.error(
-                        f"❌ Erro ao enviar local '{local[0]}':\n{json.dumps(erro, indent=2, ensure_ascii=False)}")
-                except Exception:
-                    logging.error(
-                        f"❌ Erro ao enviar local '{local[0]}': código {response.status_code} - {response.text}")
+            if response.status_code == 200:
+                logging.info(f"✅ Local enviado com sucesso: {alternativeIdentifier} - ID: {response.json().get('id')}")
             else:
-                logging.info(f"✅ Local enviado com sucesso: {local[0]} - ID: {response.json().get('id')}")
+                log_request_error(f"local '{alternativeIdentifier}'", response)
+                falha.append(nunota)
         except Exception as e:
-            logging.error(f"❌ Erro na requisição para local {local[0]}: {e}")
+            logging.error(f"❌ Erro na requisição para local {alternativeIdentifier}: {e}")
+            falha.append(nunota)
+
+    return falha
 
 
-# ============================================================
-# TAREFA                                                     =
-# ============================================================
-def umov_post_tarefa(nunota, client, itens):
-    url = "https://api.umov.me/v2/newTask"
-    app_id = os.getenv("UMOV_APP_ID")
-    app_key = os.getenv("UMOV_APP_KEY")
 
+# ============================
+# Tarefa
+# ============================
+def umov_post_tarefa(nunota, itens, client):
+    logging.debug(f"🚀 Iniciando post tarefa: {nunota}")
+    url = f"{UMOV_BASE_URL}/newTask"
+    headers = build_headers()
     tarefas = umov_get_info_from_snk('tarefa', nunota, client)
     dict_produtos = [{"alternativeIdentifier": item} for item in itens]
+    sucesso = 0
+    falha = []
 
     if not tarefas:
         logging.warning(f"⚠️ Nenhuma tarefa retornada para NUNOTA {nunota}")
-        return None
+        falha.append(nunota)
+        return 0, falha
 
     for tarefa in tarefas:
         (
-            alternativeidentifier,  # "44556-65135"
-            serviceLocal,  # "254335-1369067-44556"
-            agent,  # "master"
-            scheduleType,  # "Montagem Internos"
-            date_str,  # "20/05/2025"
-            activitiesOrigin,  # 7
-            hora,  # null
-            observation,  # texto
-            N_pedido,  # 1369067
-            tipo_servico  # "montagem"
+            alternativeidentifier, serviceLocal, agent, scheduleType,
+            date_str, activitiesOrigin, hora, observation,
+            N_pedido, tipo_servico
         ) = tarefa
 
         try:
-            # Conversão da data
             date_iso = datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d")
         except ValueError as e:
             logging.error(f"❌ Data inválida '{date_str}' para NUNOTA {nunota}: {e}")
+            falha.append(nunota)
             continue
 
         body = {
             "active": True,
             "activityOrigin": [str(activitiesOrigin)],
             "alternativeIdentifier": alternativeidentifier,
-            "taskType": {
-                "alternativeIdentifier": scheduleType
-            },
-            "agent": {
-                "alternativeIdentifier": agent
-            },
-            "serviceLocal": {
-                "alternativeIdentifier": serviceLocal
-            },
+            "taskType": {"alternativeIdentifier": scheduleType},
+            "agent": {"alternativeIdentifier": agent},
+            "serviceLocal": {"alternativeIdentifier": serviceLocal},
             "customFields": [
-                {
-                    "alternativeIdentifier": "N_pedido",
-                    "value": N_pedido
-                },
-                {
-                    "alternativeIdentifier": "tipo_servico",
-                    "value": tipo_servico
-                }
+                {"alternativeIdentifier": "N_pedido", "value": N_pedido},
+                {"alternativeIdentifier": "tipo_servico", "value": tipo_servico}
             ],
             "initialDate": date_iso,
             "initialHour": hora or "00:00",
             "situationId": 30,
             "observation": observation,
             "taskItems": dict_produtos
-        }
-
-        headers = {
-            "AppId": app_id,
-            "AppKey": app_key,
-            "Content-Type": "application/json"
         }
 
         logging.debug(
@@ -245,12 +212,13 @@ def umov_post_tarefa(nunota, client, itens):
             response = requests.post(url, headers=headers, json=body)
             if response.status_code == 200:
                 logging.info(f"✅ Tarefa criada com sucesso para NUNOTA {nunota} - ID: {response.json().get('id')}")
-                return None
+                sucesso += 1
             else:
-                logging.error(
-                    f"❌ Erro ao criar tarefa para NUNOTA {nunota}: {json.dumps(response.json(), indent=2, ensure_ascii=False)}")
-                return None
+                log_request_error(f"tarefa para NUNOTA {nunota}", response)
+                falha.append(nunota)
         except Exception as e:
             logging.error(f"❌ Erro de conexão ao criar tarefa para NUNOTA {nunota}: {e}")
-            return None
-    return None
+            falha.append(nunota)
+
+    return sucesso, falha
+

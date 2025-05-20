@@ -30,6 +30,7 @@ def snk_fetch_itens_tarefa(nunota, client: SankhyaClient):
     itens_tarefa = []
     for row in rows:
         itens_tarefa.append(row)
+    logging.debug(f"🔍 itens_tarefa: {itens_tarefa}")
     return itens_tarefa
 
 
@@ -58,10 +59,11 @@ def snk_fetch_local_tarefa(nunota, client: SankhyaClient):
                 AND CODTIPOPER in (1264, 1247, 1280, 1815)   AND CAB.NUNOTA = {nunota}  AND ITE.AD_MONTAGEM = 'S'
         """
     rows = execute_query(sql, client)
-    itens_tarefa = []
+    local_tarefa = []
     for row in rows:
-        itens_tarefa.append(row)
-    return itens_tarefa
+        local_tarefa.append(row)
+    logging.debug(f"🔍 itens_tarefa: {local_tarefa}")
+    return local_tarefa
 
 
 # ============================================================
@@ -100,7 +102,8 @@ def snk_fetch_tarefa(nunota, client: SankhyaClient):
             WHERE CAB.NUNOTA = ITE.NUNOTA AND ITE.AD_MONTAGEM = 'S' AND CAB.NUNOTA =  {nunota}
         """
     rows = execute_query(sql, client)
-    itens_tarefa = []
+    tarefa = []
     for row in rows:
-        itens_tarefa.append(row)
-    return itens_tarefa
+        tarefa.append(row)
+    logging.debug(f"🔍 itens_tarefa: {tarefa}")
+    return tarefa

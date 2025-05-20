@@ -11,7 +11,7 @@ def execute_query(sql: str, client: SankhyaClient):
         }
     }
 
-    logging.debug("🚀 Payload de executeQuery:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+    logging.debug("📄 Payload de executeQuery:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
 
     try:
         logging.debug(f"🔎 Executando SQL no Sankhya: {sql}")

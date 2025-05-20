@@ -7,6 +7,8 @@ import requests
 from dotenv import load_dotenv
 from requests import RequestException, Timeout
 
+from notifications.telegram import enviar_notificacao_telegram
+
 load_dotenv()
 
 TOKEN = os.getenv("SANKHYA_TOKEN")
@@ -56,6 +58,7 @@ class SankhyaClient:
             self.headers = {**HEADERS_BASE, "Authorization": f"Bearer {self.token}"}
         except requests.RequestException as e:
             logging.error(f"❌ Erro ao autenticar: {e}")
+            enviar_notificacao_telegram(f"❌ Não foi possível autenticar na Api do Sankhya")
             raise
 
     def _build_url(self, service_name: str) -> str:
@@ -88,6 +91,7 @@ class SankhyaClient:
                 logging.warning(f"⏱️ Timeout na tentativa {attempt}/{max_retries} para {service_name}")
                 if attempt == max_retries:
                     logging.error(f"❌ Timeout após {max_retries} tentativas.")
+                    enviar_notificacao_telegram(f"❌ Timeout após {max_retries} tentativas.")
                     raise
                 # backoff exponencial e continua o loop
                 time.sleep(2 ** (attempt - 1))
