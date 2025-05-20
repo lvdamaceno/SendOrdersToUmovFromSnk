@@ -15,7 +15,12 @@ def snk_fetch_itens_tarefa(nunota, client: SankhyaClient):
                 LTRIM(RTRIM(STR(ITE.CODPROD)))+'-'+LTRIM(RTRIM(STR(CAB.NUNOTA)))+'-'+LTRIM(RTRIM(STR(CAB.NUMNOTA)))+'-'+LTRIM(STR(ABS(CHECKSUM(NewId())) % 99999)) AS alternativeidentifier, 
                 PRO.DESCRPROD AS description, 
                 1 AS active, 
-                CASE WHEN CAB.CODTIPOPER=1264 THEN 'prod' WHEN CAB.CODTIPOPER=1280 THEN 'assist' ELSE 'tec' END AS subgroup, 
+                CASE 
+                    WHEN CAB.CODTIPOPER=1264 THEN 'prod' 
+                    WHEN CAB.CODTIPOPER=1815 THEN 'prod'
+                    WHEN CAB.CODTIPOPER=1280 THEN 'assist' 
+                    WHEN CAB.CODTIPOPER=1247 THEN 'tec' 
+                END AS subgroup, 
                 ITE.QTDNEG AS qtd_item, 
                 CAB.NUNOTA AS num_pedido 
             FROM TGFCAB CAB, TGFITE ITE, TGFPRO PRO 
@@ -50,7 +55,7 @@ def snk_fetch_local_tarefa(nunota, client: SankhyaClient):
                 CPL.CEPENTREGA AS zipcode  
             FROM TGFCAB CAB, TGFPAR PAR, TGFITE ITE, TGFCPL CPL 
             WHERE  CAB.CODPARC = PAR.CODPARC AND PAR.CODPARC = CPL.CODPARC AND CAB.NUNOTA = ITE.NUNOTA 
-                AND CODTIPOPER in (1264, 1247, 1280)   AND CAB.NUNOTA = {nunota}  AND ITE.AD_MONTAGEM = 'S'
+                AND CODTIPOPER in (1264, 1247, 1280, 1815)   AND CAB.NUNOTA = {nunota}  AND ITE.AD_MONTAGEM = 'S'
         """
     rows = execute_query(sql, client)
     itens_tarefa = []
@@ -87,6 +92,7 @@ def snk_fetch_tarefa(nunota, client: SankhyaClient):
               CAB.NUNOTA AS N_pedido,
               CASE 
                 WHEN CAB.CODTIPOPER = 1264 THEN 'montagem'
+                WHEN CAB.CODTIPOPER = 1815 THEN 'montagem'
                 WHEN CAB.CODTIPOPER = 1247 THEN 'visitatec'
                 WHEN CAB.CODTIPOPER = 1280 THEN 'assistencia' 
               END AS [CF_tipo_servico] 

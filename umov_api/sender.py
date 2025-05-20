@@ -1,31 +1,38 @@
 import json
 import logging
 import os
-import re
 from datetime import datetime
 
 import requests
 
 from sankhya_api.fetch import snk_fetch_itens_tarefa, snk_fetch_local_tarefa, snk_fetch_tarefa
 
+def umov_get_info_from_snk(tipo, nunota, client):
+    fetch_map = {
+        'itens_tarefa': (snk_fetch_itens_tarefa, "📦 Itens tarefa"),
+        'local_tarefa': (snk_fetch_local_tarefa, "📍 Local tarefa"),
+        'tarefa': (snk_fetch_tarefa, "🛠️ Tarefa"),
+    }
+
+    if tipo not in fetch_map:
+        raise ValueError(f"Tipo inválido: {tipo}")
+
+    fetch_func, log_msg = fetch_map[tipo]
+    info = fetch_func(nunota, client)
+    logging.debug(f"{log_msg}: {info}")
+    return info
+
 
 # ============================================================
 # ITENS DA TAREFA                                            =
 # ============================================================
-
-def umov_get_from_snk_itens_tarefa(nunota, client):
-    itens_tarefa = snk_fetch_itens_tarefa(nunota, client)
-    logging.debug(f"📦 Itens tarefa: {itens_tarefa}")
-    return itens_tarefa
-
-
 def umov_post_itens_tarefa(nunota, client):
     url = "https://api.umov.me/v2/item"
 
     app_id = os.getenv("UMOV_APP_ID")
     app_key = os.getenv("UMOV_APP_KEY")
 
-    itens = umov_get_from_snk_itens_tarefa(nunota, client)
+    itens = umov_get_info_from_snk('itens_tarefa', nunota, client)
     produtos = []
 
     headers = {
@@ -78,13 +85,6 @@ def umov_post_itens_tarefa(nunota, client):
 # ============================================================
 # LOCAL DA TAREFA                                            =
 # ============================================================
-
-def umov_get_from_snk_local_tarefa(nunota, client):
-    itens_tarefa = snk_fetch_local_tarefa(nunota, client)
-    logging.info(f"📍 Local tarefa: {itens_tarefa}")
-    return itens_tarefa
-
-
 def umov_post_local_tarefa(nunota, client):
     url = "https://api.umov.me/v2/local"
     app_id = os.getenv("UMOV_APP_ID")
@@ -96,7 +96,7 @@ def umov_post_local_tarefa(nunota, client):
         "Content-Type": "application/json"
     }
 
-    locais = umov_get_from_snk_local_tarefa(nunota, client)
+    locais = umov_get_info_from_snk('local_tarefa', nunota, client)
 
     for local in locais:
         (
@@ -169,19 +169,12 @@ def umov_post_local_tarefa(nunota, client):
 # ============================================================
 # TAREFA                                                     =
 # ============================================================
-
-def umov_get_from_snk_tarefa(nunota, client):
-    tarefa = snk_fetch_tarefa(nunota, client)
-    logging.debug(f"🛠️ Tarefa: {tarefa}")
-    return tarefa
-
-
 def umov_post_tarefa(nunota, client, itens):
     url = "https://api.umov.me/v2/newTask"
     app_id = os.getenv("UMOV_APP_ID")
     app_key = os.getenv("UMOV_APP_KEY")
 
-    tarefas = umov_get_from_snk_tarefa(nunota, client)
+    tarefas = umov_get_info_from_snk('tarefa', nunota, client)
     dict_produtos = [{"alternativeIdentifier": item} for item in itens]
 
     if not tarefas:
