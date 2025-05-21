@@ -62,8 +62,9 @@ def processa_envio_pedido_periodo_umov(*datas, client):
             falha_flat.append(item)
 
     mensagem = (
-        f"🔍 {len(pedidos)} pedidos encontrados em {log_info} para enviar ao UMOV\n"
-        f"✅ Total de tarefas criadas com sucesso: {sucesso}\n"
-        f"❌ Pedidos com falha: {', '.join(map(str, falha_flat)) if falha_flat else '0'}"
+        f"*📄 Relatório de Processamento UMOV:\n*"
+        f"*• Pedidos feitos em {log_info}:* `{len(pedidos)}` \n"
+        f"*• Total de tarefas criadas com sucesso:* `{sucesso}`\n"
+        f"*• Pedidos com falha:* `{', '.join(map(str, falha_flat)) if falha_flat else '0'}`"
     )
     enviar_notificacao_telegram(mensagem)
