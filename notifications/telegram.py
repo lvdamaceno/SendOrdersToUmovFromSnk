@@ -31,9 +31,13 @@ def enviar_notificacao_telegram(mensagem):
         response = requests.post(url, data=payload)
         if response.status_code == 200:
             logging.info("Notificação enviada com sucesso!")
+            return True
         else:
+            logging.warning(f"Falha ao enviar notificação: {response}")
             logging.warning(f"Falha ao enviar notificação: {response.status_code}")
+            return False
     except requests.exceptions.RequestException as e:
         logging.error(f"Ocorreu um erro: {e}")
+        return None
 
 
